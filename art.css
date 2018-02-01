@@ -1,11 +1,17 @@
 body {
-  background:
-    url(data:image/gif;base64,R0lGODlhEAAQAMQAAORHHOVSKudfOulrSOp3WOyDZu6QdvCchPGolfO0o/XBs/fNwfjZ0frl3/zy7////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAkAABAALAAAAAAQABAAAAVVICSOZGlCQAosJ6mu7fiyZeKqNKToQGDsM8hBADgUXoGAiqhSvp5QAnQKGIgUhwFUYLCVDFCrKUE1lBavAViFIDlTImbKC5Gm2hB0SlBCBMQiB0UjIQA7)
-    repeat;
+  background-color: #000
+}
+
+h1 {
+  color: #fff;
 }
 
 canvas {
-  width: 512px;
-  height: 512px;
+  position:fixed; 
+  top: 0;
+  left:0;
+  width: 100%;
+  height: 100%;
   display: block;
+  z-index: -1;
 }

@@ -26,24 +26,48 @@ uniform sampler2D u_previousFrame;
 // Geometry info.
 uniform vec2 u_deformers[3];
 uniform vec2 u_triangleCoords[3];
+uniform int u_drawTriangle;
 
 // we need to declare an output for the fragment shader
 out vec4 outColor;
 
 void main() {
-  vec2 shift = vec2(0,0);
-  vec2 frag = vec2(gl_FragCoord.xy);
-  vec2 difference; 
-  float squareDistance; 
 
-  for(int i = 0; i < 3; i++){
-    difference = u_deformers[i] - frag; 
-    shift += difference / (difference.x * difference.x + difference.y * difference.y + 1.0f);
+  if(u_drawTriangle == 1 && 
+    position.x + position.y < u_triangleCoords[1].x + 0.02 &&
+    position.x + position.y > u_triangleCoords[1].x - 0.02
+   )
+  {
+    if(u_triangleCoords[2].x > 0.0)
+    
+      outColor = vec4(1,1,1,1);//(u_triangleCoords[0].xy + vec2(2,2)) * 0.33, 0.75, 1);
+    else
+    {
+      vec4 pc = texture(u_previousFrame, (position + vec2(1,1)) * 0.5f);
+      outColor = vec4(0.9-pc.g, 1.0-pc.b, 0.5 + pc.r*0.5, pc.a);
+    }
   }
+  else
+  {
+    vec2 shift = vec2(0,0);
+    vec2 difference;
+    float distance;  
 
-  shift *= 0.01;
+    for(int i = 0; i < 3; i++){
+      difference = u_deformers[i] - position; 
+      distance = pow(difference.x, 2.0) + pow(difference.y, 2.0);
+      shift += difference / (distance+0.01) ;
+    }
 
-  outColor = texture(u_previousFrame, (frag + shift + vec2(1,1)) * 0.5f);
+    shift *= 0.0007;
+
+    if(length(shift) < 0.0025)
+    {
+      shift = vec2(0,0);
+    } 
+    outColor = texture(u_previousFrame, (position + shift + vec2(1,1)) * 0.5f);
+
+  }
 }`;
 
 var postProcessFragmentShaderSource = `#version 300 es
@@ -60,8 +84,8 @@ out vec4 fragColor;
 
 void main()
 {
-    // fragColor = texture(u_currentFrame, (gl_FragCoord.xy + vec2(1,1)) * 0.5f);
-    fragColor = vec4((position.x + 1.0) * 0.5 ,1,0,1);
+    fragColor = texture(u_currentFrame, (position + vec2(1,1)) * 0.5f);
+    //fragColor = vec4((position.x + 1.0) * 0.5 ,1,0,1);
 }`;
 
 function main() {
@@ -87,6 +111,7 @@ function main() {
   var previousFrameTextureLocation = gl.getUniformLocation(fancyProgram, "u_previousFrame");
   var deformersLocation = gl.getUniformLocation(fancyProgram, "u_deformers");
   var triangleCoordsLocation = gl.getUniformLocation(fancyProgram, "u_triangleCoords");
+  var drawTriangleLocation = gl.getUniformLocation(fancyProgram, "u_drawTriangle");
 
   // For rendering the frame texture to the screen
   var postProcessProgram = createProgramFromSources(gl, 
@@ -127,7 +152,7 @@ function main() {
   gl.vertexAttribPointer(
       positionAttributeLocation, size, type, normalize, stride, offset);
 
-  /*// Create two textures, they get switched after every frame - one to read from, one to write to
+  // Create two textures, they get switched after every frame - one to read from, one to write to
   const frameWidth = 512;
   const frameHeight = 512;
   const frame = [];
@@ -156,28 +181,28 @@ function main() {
 
   // Create and bind the framebuffer
   const fb = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);*/
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
 
   // Get the starting time.
   var then = 0;
 
-  var previousFrameIndex = 0;
-
+  var currentFrameIndex = 0;
+  var triangleInterval = 500;
+  var timeSinceLastTriangle = triangleInterval, justDrewATriangle = false; 
 
   requestAnimationFrame(drawScene);
 
   // Draw the scene.
   function drawScene(time) {
-    // convert to seconds
-    time *= 0.001;
-    // Subtract the previous time from the current time
     var deltaTime = time - then;
-    // Remember the current time for the next frame.
     then = time;
 
-    var currentFrameIndex = 1 - previousFrameIndex;
+    timeSinceLastTriangle += deltaTime;
 
-    /*{
+    currentFrameIndex = 1 - currentFrameIndex;
+    var previousFrameIndex = 1 - currentFrameIndex;
+
+    {
       //set render target
       gl.bindFramebuffer(gl.FRAMEBUFFER, fb); // we need some kind of internal double buffering - because we read from the previous frame and write the next frame
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, frame[currentFrameIndex], 0); //level = 0
@@ -188,29 +213,39 @@ function main() {
       gl.useProgram(fancyProgram); 
 
 
+      if(justDrewATriangle)
+      {
+        gl.uniform1i(drawTriangleLocation, 0);
+        justDrewATriangle = false; 
+      } 
+      timeSinceLastTriangle += deltaTime;
+      if(timeSinceLastTriangle >= triangleInterval)
+      {
+        gl.uniform2fv(triangleCoordsLocation, Array.apply(null, Array(6)).map(i => (Math.random()*2-1)))        
+        gl.uniform1i(drawTriangleLocation, 1);
+        timeSinceLastTriangle = 0; 
+        justDrewATriangle = true; 
+      }
 
       gl.uniform1i(previousFrameTextureLocation, 0); //maybe this is only necessary initially
       var deformers = [
-        0,0,
-        0,1,
-        1,1
-      ];
+        Math.sin(time*0.0001), Math.sin(time*0.00031 + 3),
+        Math.sin(time*0.00012+1), Math.sin(time*0.000092+100),
+        Math.sin(time*0.000235+0.543), Math.sin(time*0.0004+10)
+      ].map(x => x*0.9);
       gl.uniform2fv(deformersLocation, deformers)
-      gl.uniform2fv(triangleCoordsLocation, Array.apply(null, Array(6)).map(i => (Math.random()*2-1)))
 
       gl.bindVertexArray(vao); 
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    }*/
+    }
     {
       //set render target
       gl.bindFramebuffer(gl.FRAMEBUFFER, null); //Screen
-      /*
+
       //set texture to read from
       gl.bindTexture(gl.TEXTURE_2D, frame[currentFrameIndex]);
-*/
 
-//      gl.viewport(-1, -1, 2, 2); //redundant probably
-  gl.viewport(0, 0, 512, 512);
+      gl.viewport(0, 0, 512, 512);
 
   
       gl.clearColor(0, 0, 1, 1);   // clear to blue
