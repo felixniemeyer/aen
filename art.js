@@ -34,17 +34,18 @@ out vec4 outColor;
 void main() {
 
   if(u_drawTriangle == 1 && 
-    position.x + position.y < u_triangleCoords[1].x + 0.02 &&
-    position.x + position.y > u_triangleCoords[1].x - 0.02
+    position.x + position.y < u_triangleCoords[1].x + u_triangleCoords[2].y*0.06 &&
+    position.x + position.y > u_triangleCoords[1].x - u_triangleCoords[2].y*0.06
    )
   {
     if(u_triangleCoords[2].x > 0.0)
-    
-      outColor = vec4(1,1,1,1);//(u_triangleCoords[0].xy + vec2(2,2)) * 0.33, 0.75, 1);
+    {
+      outColor = vec4(1,1,1,1)*0.65 + vec4((u_triangleCoords[0].xy + vec2(2,2)) * 0.33, 0.75, 1)*0.35;
+    }
     else
     {
       vec4 pc = texture(u_previousFrame, (position + vec2(1,1)) * 0.5f);
-      outColor = vec4(0.9-pc.g, 1.0-pc.b, 0.5 + pc.r*0.5, pc.a);
+      outColor = vec4(abs(0.5*pc.b - pc.r), abs(pc.b - pc.g), 1.0 - pc.r, pc.a);
     }
   }
   else
@@ -56,16 +57,12 @@ void main() {
     for(int i = 0; i < 3; i++){
       difference = u_deformers[i] - position; 
       distance = pow(difference.x, 2.0) + pow(difference.y, 2.0);
-      shift += difference / (distance+0.01) ;
+      shift += difference / (distance+0.01) / pow(distance+1.0,1.0);
     }
 
-    shift *= 0.0007;
+    shift *= 0.0018;
 
-    if(length(shift) < 0.0025)
-    {
-      shift = vec2(0,0);
-    } 
-    outColor = texture(u_previousFrame, (position + shift + vec2(1,1)) * 0.5f);
+    outColor = texture(u_previousFrame, (position + shift + vec2(1,1)) * 0.5f)*vec4(0.9995,0.998,0.997,1) - vec4(0.00005,0.0001,0.00015,0);
 
   }
 }`;
@@ -97,6 +94,13 @@ function main() {
     console.error("could not get webgl2 content");
     document.body.textContent = "Your browser does not allow us to set up webgl2 :-/";
     return;
+  }
+
+  //extensions
+  var ext = gl.getExtension('EXT_color_buffer_float');
+  if (!ext) {
+    console.error("need gl extension EXT_color_buffer_float");
+    return; 
   }
 
   // Use our boilerplate utils to compile the shaders and link into a program
@@ -164,10 +168,10 @@ function main() {
 
     // define size and format of level 0
     const level = 0;
-    const internalFormat = gl.RGBA;
+    const internalFormat = gl.RGBA16F;
     const border = 0;
     const format = gl.RGBA;
-    const type = gl.UNSIGNED_BYTE;
+    const type = gl.HALF_FLOAT;
     const data = null;
     gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
                   frameWidth, frameHeight, border,
@@ -187,7 +191,7 @@ function main() {
   var then = 0;
 
   var currentFrameIndex = 0;
-  var triangleInterval = 500;
+  var triangleInterval = 450;
   var timeSinceLastTriangle = triangleInterval, justDrewATriangle = false; 
 
   requestAnimationFrame(drawScene);
@@ -223,7 +227,7 @@ function main() {
       {
         gl.uniform2fv(triangleCoordsLocation, Array.apply(null, Array(6)).map(i => (Math.random()*2-1)))        
         gl.uniform1i(drawTriangleLocation, 1);
-        timeSinceLastTriangle = 0; 
+        timeSinceLastTriangle -= triangleInterval * (Math.random()*1.8-0.4); 
         justDrewATriangle = true; 
       }
 
