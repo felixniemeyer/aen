@@ -45,7 +45,7 @@ void main() {
     else
     {
       vec4 pc = texture(u_previousFrame, (position + vec2(1,1)) * 0.5f);
-      outColor = vec4(abs(0.5*pc.b - pc.r), abs(pc.b - pc.g), 1.0 - pc.r, pc.a);
+      outColor = vec4(abs(0.5*pc.b - pc.r), abs(pc.b - pc.g*0.8), 1.0 - pc.r, pc.a);
     }
   }
   else
@@ -53,16 +53,17 @@ void main() {
     vec2 shift = vec2(0,0);
     vec2 difference;
     float distance;  
+    float speed = 0.008; 
 
     for(int i = 0; i < 3; i++){
       difference = u_deformers[i] - position; 
       distance = pow(difference.x, 2.0) + pow(difference.y, 2.0);
-      shift += difference / (distance+0.01) / pow(distance+1.0,1.0);
+      shift += difference / (distance+speed) / pow(distance+1.0,5.5);
     }
 
-    shift *= 0.0018;
+    shift *= speed;
 
-    outColor = texture(u_previousFrame, (position + shift + vec2(1,1)) * 0.5f)*vec4(0.9995,0.998,0.997,1) - vec4(0.00005,0.0001,0.00015,0);
+    outColor = texture(u_previousFrame, (position + shift + vec2(1,1)) * 0.5f)*vec4(0.9996,0.9975,0.997,1) - vec4(0.00015,0.00033,0.00035,0);
 
   }
 }`;
@@ -82,7 +83,6 @@ out vec4 fragColor;
 void main()
 {
     fragColor = texture(u_currentFrame, (position + vec2(1,1)) * 0.5f);
-    //fragColor = vec4((position.x + 1.0) * 0.5 ,1,0,1);
 }`;
 
 function main() {
@@ -102,6 +102,9 @@ function main() {
     console.error("need gl extension EXT_color_buffer_float");
     return; 
   }
+
+  var texsize = Math.pow(2,10);
+  var cansize = 512;  
 
   // Use our boilerplate utils to compile the shaders and link into a program
   var fancyProgram = createProgramFromSources(gl,
@@ -157,8 +160,8 @@ function main() {
       positionAttributeLocation, size, type, normalize, stride, offset);
 
   // Create two textures, they get switched after every frame - one to read from, one to write to
-  const frameWidth = 512;
-  const frameHeight = 512;
+  const frameWidth = texsize;
+  const frameHeight = texsize;
   const frame = [];
   for(var i = 0; i <= 1; i++){
     frame[i] = gl.createTexture();
@@ -213,6 +216,8 @@ function main() {
       
       //set texture to write to
       gl.bindTexture(gl.TEXTURE_2D, frame[previousFrameIndex]);
+
+      gl.viewport(0, 0, texsize, texsize);
       
       gl.useProgram(fancyProgram); 
 
@@ -249,7 +254,7 @@ function main() {
       //set texture to read from
       gl.bindTexture(gl.TEXTURE_2D, frame[currentFrameIndex]);
 
-      gl.viewport(0, 0, 512, 512);
+      gl.viewport(0, 0, cansize, cansize);
 
   
       gl.clearColor(0, 0, 1, 1);   // clear to blue
