@@ -53,7 +53,7 @@ void main() {
     vec2 shift = vec2(0,0);
     vec2 difference;
     float distance;  
-    float speed = 0.008; 
+    float speed = 0.0028; 
 
     for(int i = 0; i < 3; i++){
       difference = u_deformers[i] - position; 
@@ -63,7 +63,7 @@ void main() {
 
     shift *= speed;
 
-    outColor = texture(u_previousFrame, (position + shift + vec2(1,1)) * 0.5f)*vec4(0.9996,0.9975,0.997,1) - vec4(0.00015,0.00033,0.00035,0);
+    outColor = texture(u_previousFrame, (position + shift + vec2(1,1)) * 0.5f)*vec4(0.9951,0.99,0.99,1) - vec4(0.00015,0.00035,0.00035,0);
 
   }
 }`;
@@ -85,6 +85,10 @@ void main()
     fragColor = texture(u_currentFrame, (position + vec2(1,1)) * 0.5f);
 }`;
 
+var keydown = false; 
+window.addEventListener("keydown", () => { keydown = true });
+window.addEventListener("keyup", () => { keydown = false });
+window.addEventListener("blur", () => { keydown = false });
 function main() {
   // Get A WebGL context
   /** @type {HTMLCanvasElement} */
@@ -104,7 +108,10 @@ function main() {
   }
 
   var texsize = Math.pow(2,10);
-  var cansize = 512;  
+  var cansize = texsize;//1024;  
+
+  canvas.setAttribute("width", cansize);
+  canvas.setAttribute("height", cansize);
 
   // Use our boilerplate utils to compile the shaders and link into a program
   var fancyProgram = createProgramFromSources(gl,
@@ -228,11 +235,11 @@ function main() {
         justDrewATriangle = false; 
       } 
       timeSinceLastTriangle += deltaTime;
-      if(timeSinceLastTriangle >= triangleInterval)
+      if(timeSinceLastTriangle >= triangleInterval || keydown)
       {
         gl.uniform2fv(triangleCoordsLocation, Array.apply(null, Array(6)).map(i => (Math.random()*2-1)))        
         gl.uniform1i(drawTriangleLocation, 1);
-        timeSinceLastTriangle -= triangleInterval * (Math.random()*1.8-0.4); 
+        timeSinceLastTriangle = Math.min(triangleInterval, Math.max(0, timeSinceLastTriangle - triangleInterval * (Math.random()*1.8-0.4))); 
         justDrewATriangle = true; 
       }
 
