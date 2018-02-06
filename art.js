@@ -28,44 +28,93 @@ uniform vec2 u_deformers[3];
 uniform vec2 u_triangleCoords[3];
 uniform int u_drawTriangle;
 
+float onePixel = 2.0 / 1024.0;
+
 // we need to declare an output for the fragment shader
 out vec4 outColor;
 
 void main() {
-
-  if(u_drawTriangle == 1 && 
-    position.x + position.y < u_triangleCoords[1].x + pow(u_triangleCoords[2].y,2.0)*0.06 &&
-    position.x + position.y > u_triangleCoords[1].x - pow(u_triangleCoords[2].y,2.0)*0.06
-   )
+  int i; 
+  bool partOfTriangle = false;
+  float a, b = -1.0, edgeDistance; 
+  if(u_drawTriangle == 1)
   {
-    if(u_triangleCoords[2].x > 0.0)
+    vec2 avg = ( ( u_triangleCoords[0] + u_triangleCoords[1] ) * 0.5 + u_triangleCoords[2] ) * 0.5;
+
+    int iB, iC; 
+    float M, U, N, V; 
+    for(i = 0; i < 3; i++)
     {
-      outColor = vec4(1,1,1,1)*0.65 + vec4((u_triangleCoords[0].xy + vec2(2,2)) * 0.33, 0.75, 1)*0.35;
+      iB = i; 
+      iC = (i + 1) % 3; 
+
+      M = (u_triangleCoords[iB].y - u_triangleCoords[iC].y) * (position.x - avg.x);
+      U = (position.x - avg.x) * (u_triangleCoords[iC].y - avg.y);
+      N = (u_triangleCoords[iB].x - u_triangleCoords[iC].x) * (position.y - avg.y);
+      V = (position.y - avg.y) * (u_triangleCoords[iC].x - avg.x); 
+
+      a = (V-U) / (M - N);
+
+      b = ( position.y - avg.y ) / ( u_triangleCoords[iB].y * a + u_triangleCoords[iC].y * (1.0 - a) - avg.y);
+
+      if(a >= 0.0 && a <= 1.0 && b >= 0.0 && b <= 1.0)
+      {
+        partOfTriangle = true; 
+        edgeDistance = distance(avg, position) / b;
+        break; 
+      }
+    } 
+  }
+
+  vec4 previousColor = texture(u_previousFrame, (position + vec2(1,1)) * 0.5f);
+  vec4 invertColor = vec4(min(1.0, previousColor.g*0.9 + abs(previousColor.b*0.5 - previousColor.r)), abs(previousColor.b * previousColor.r), 0.1 + 0.9*previousColor.r, previousColor.a);
+  float fade; 
+  if(partOfTriangle)
+  {
+    vec4 newColor = vec4(1,1,1,1)*0.65 + vec4((u_triangleCoords[0].xy + vec2(2,2)) * 0.33, 0.75, 1)*0.35;
+    float relPixSize = onePixel * 2.0 / (edgeDistance); 
+    if(b <= 0.9)
+    {
+
+      if(b > 0.9 - relPixSize)
+      {
+        fade = (0.9-b) / relPixSize;
+        outColor = invertColor * fade + newColor * (1.0 - fade); 
+      }
+      else
+      {
+        outColor = invertColor; 
+      }
     }
-    else
+    else if(b <= 1.0)
     {
-      vec4 pc = texture(u_previousFrame, (position + vec2(1,1)) * 0.5f);
-      outColor = vec4(abs(0.5*pc.b - pc.r), abs(pc.b - pc.g*0.8), 1.0 - pc.r, pc.a);
+      if(b > 1.0 - relPixSize)
+      {
+        fade = (1.0-b) / relPixSize;
+        outColor = newColor * fade + previousColor * (1.0 - fade);
+      }
+      else
+      {
+        outColor = newColor; 
+      }
     }
   }
-  else
+  else 
   {
     vec2 shift = vec2(0,0);
     vec2 difference;
     float distance;  
-    float speed = 0.0028; 
+    float speed = 0.0018; 
 
-    for(int i = 0; i < 3; i++){
+    for(i = 0; i < 3; i++){
       difference = u_deformers[i] - position; 
       distance = pow(difference.x, 2.0) + pow(difference.y, 2.0);
-      shift += difference / (distance+speed) / pow(distance+1.0,5.5);
+      shift += difference / (distance+speed) / pow(distance+1.0,1.5);
     }
 
     shift *= speed; //consider multiplying with -1 :D
 
-
-    outColor = texture(u_previousFrame, (position + shift + vec2(1,1)) * 0.5f)*vec4(0.9971,0.993,0.993,1) - vec4(0.00015,0.00020,0.00025,0);
-
+    outColor = texture(u_previousFrame, (position + shift + vec2(1,1)) * 0.5f)*vec4(0.992,0.994,0.996,1) - vec4(0.00055,0.00015,0.00025,0);
   }
 }`;
 
@@ -202,7 +251,7 @@ function main() {
   var then = 0;
 
   var currentFrameIndex = 0;
-  var triangleInterval = 450;
+  var triangleInterval = 280;
   var timeSinceLastTriangle = triangleInterval, justDrewATriangle = false; 
 
   requestAnimationFrame(drawScene);
