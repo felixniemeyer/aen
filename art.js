@@ -34,8 +34,8 @@ out vec4 outColor;
 void main() {
 
   if(u_drawTriangle == 1 && 
-    position.x + position.y < u_triangleCoords[1].x + u_triangleCoords[2].y*0.06 &&
-    position.x + position.y > u_triangleCoords[1].x - u_triangleCoords[2].y*0.06
+    position.x + position.y < u_triangleCoords[1].x + pow(u_triangleCoords[2].y,2.0)*0.06 &&
+    position.x + position.y > u_triangleCoords[1].x - pow(u_triangleCoords[2].y,2.0)*0.06
    )
   {
     if(u_triangleCoords[2].x > 0.0)
@@ -61,9 +61,10 @@ void main() {
       shift += difference / (distance+speed) / pow(distance+1.0,5.5);
     }
 
-    shift *= speed;
+    shift *= speed; //consider multiplying with -1 :D
 
-    outColor = texture(u_previousFrame, (position + shift + vec2(1,1)) * 0.5f)*vec4(0.9951,0.99,0.99,1) - vec4(0.00015,0.00035,0.00035,0);
+
+    outColor = texture(u_previousFrame, (position + shift + vec2(1,1)) * 0.5f)*vec4(0.9971,0.993,0.993,1) - vec4(0.00015,0.00020,0.00025,0);
 
   }
 }`;
