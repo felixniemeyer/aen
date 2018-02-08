@@ -67,7 +67,7 @@ void main() {
   }
 
   vec4 previousColor = texture(u_previousFrame, (position + vec2(1,1)) * 0.5f);
-  vec4 invertColor = vec4(min(1.0, previousColor.g*0.9 + abs(previousColor.b*0.5 - previousColor.r)), abs(previousColor.b * previousColor.r), 0.1 + 0.9*previousColor.r, previousColor.a);
+  vec4 invertColor = vec4(min(1.0, 0.1 + previousColor.g*0.9 + abs(previousColor.b*0.5 - previousColor.r)), abs((previousColor.b+0.15) * previousColor.r), 0.1 + 0.9*previousColor.r, previousColor.a);
   float fade; 
   if(partOfTriangle)
   {
