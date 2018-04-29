@@ -305,7 +305,7 @@ function main() {
 	var then = 0;
 
 	var currentFrameIndex = 0;
-	var triangleInterval = 280;
+	var triangleInterval = 870;
 	var timeSinceLastTriangle = triangleInterval, justDrewATriangle = false; 
 
 	requestAnimationFrame(drawScene);
