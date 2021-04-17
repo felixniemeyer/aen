@@ -30,9 +30,10 @@ uniform int u_touchCount;
 
 uniform float u_y_from;
 uniform float u_y_to; 
+uniform float u_scroll; 
 uniform int u_drawRect;
 
-const float speed = 0.0018; 
+const float speed = 0.0009; 
 
 // we need to declare an output for the fragment shader
 out vec4 outColor;
@@ -55,27 +56,29 @@ void main() {
 	for(i = 0; i < u_touchCount; i++){
 		difference = u_touches[i].xy - position;
 		distance = pow(difference.x, 2.0) + pow(difference.y, 2.0);
-		shift -= 2.0 * difference / (distance+speed) / pow(distance+1.0,1.5);
+		shift -= 5.0 * difference / (distance+speed) / pow(distance+1.0,1.5);
 	}
 
 	shift *= speed; //consider multiplying with -1 :D
+	shift.y -= u_scroll;
 
 	vec3 previousColor = texture(u_previousFrame, (position + shift + vec2(1,1)) * 0.5f).rgb;
 	vec3 nextColor;
 
 	if(position.y > u_y_from && position.y < u_y_to ) {
 		if(position.y > u_y_from * 0.9 + u_y_to * 0.1 && position.y < u_y_to * 0.9 + u_y_from * 0.1) {
-			nextColor = previousColor - vec3(0.01, 0.01, 0.005) ; //0.33 * (vec3(1) + vec3(u_y_from, u_y_to, 0));
+			nextColor = previousColor - 0.006 * vec3(1, 1, 0.5) ; //0.33 * (vec3(1) + vec3(u_y_from, u_y_to, 0));
 		} else {
-			nextColor = vec3(
-				min(1.0, 0.1 + previousColor.g*0.9 + abs(previousColor.b*0.5 - previousColor.r)), 
-				abs((previousColor.b+0.15) * previousColor.r), 
-				0.1 + 0.9*previousColor.r
-			);
+			nextColor = previousColor - 0.01 * vec3(previousColor.g, previousColor.b, previousColor.r); 
+		//	vec3(
+		//		min(1.0, 0.1 + previousColor.g*0.9 + abs(previousColor.b*0.5 - previousColor.r)), 
+		//		abs((previousColor.b+0.15) * previousColor.r), 
+		//		0.1 + 0.9*previousColor.r
+		//	);
 		}
 		nextColor = max(vec3(0), nextColor);
 	} else {
-		nextColor = min(vec3(1), previousColor * vec3(1.008, 1.006, 1.004) + vec3(0.00055, 0.00015, 0.00025)); 
+		nextColor = min(vec3(1), previousColor * vec3(1.008, 1.0065, 1.004) + vec3(0.00055, 0.00025, 0.00015)); 
 	}
 	outColor = vec4(nextColor, 1); 
 }`;
@@ -99,6 +102,17 @@ void main()
 
 var keydown = false; 
 var touches = [];
+var previousScroll = 0;
+var leftToScroll = 0;
+var windowHeight = 0, windowWidth = 0;
+
+var canvas = document.getElementById("canvas");
+
+function updateWindowDim() {
+	windowHeight = canvas.clientHeight; 
+	windowWidth = canvas.clientWidth;
+}
+updateWindowDim()
 
 function initEventListeners()
 {
@@ -106,31 +120,43 @@ function initEventListeners()
 	window.addEventListener("keyup", () => { keydown = false });
 	window.addEventListener("blur", () => { keydown = false });
 
-	document.body.addEventListener("touchestart", updateTouches, {passive: false}); 
-	document.body.addEventListener("touchmove", updateTouches, {passive: false});
-	document.body.addEventListener("touchend", updateTouches, {passive: false});
+	window.addEventListener('resize', updateWindowDim);
+	
+	document.addEventListener("touchestart", updateTouches, {passive: false}); 
+	document.addEventListener("touchmove", updateTouches, {passive: false});
+	document.addEventListener("touchend", updateTouches, {passive: false});
+
+	document.addEventListener("mousemove", e => {
+		touches = [[
+			e.clientX / windowWidth * 2 - 1, 
+			- e.clientY / windowHeight * 2 + 1, 
+			1
+		]]
+	});
+
+	document.addEventListener('scroll', e => {
+		leftToScroll += window.scrollY - previousScroll;
+		previousScroll = window.scrollY;
+	})
 }
 
-//gibt es eigentlich eine js sound library? lol.
+//gibt es eigentlich eine js sound library? lol. (paar Jahre später: Antwort = ja, Web Audio)
 
 function updateTouches(evt) {
 	evt.preventDefault();
 	evt.stopPropagation();
 	
-	var width = window.innerWidth; 
-	var height = window.innerHeight; 
-
 	touches = [];
 	for(var i = 0; i < evt.touches.length; i++) {	
 		touches.push([
-			evt.touches[i].pageX * 2 / width - 1,
-			-evt.touches[i].pageY * 2 / height + 1, 
+			evt.touches[i].pageX * 2 / windowWidth - 1,
+			-evt.touches[i].pageY * 2 / windowHeight + 1, 
 			1
 		]);
 	}
 }
 
-function getTouchesForUniform(time, gl){
+function getTouchesForUniform(){
 	var uniformIndex, touchesForUniform = [];
 	for(var touchIndex = 0; touchIndex < 10; touchIndex++) {
 		for(var componentIndex = 0; componentIndex < 3; componentIndex++) {
@@ -146,7 +172,6 @@ function main() {
 
 	// Get A WebGL context
 	/** @type {HTMLCanvasElement} */
-	var canvas = document.getElementById("canvas");
 	var gl = canvas.getContext("webgl2");
 	if (!gl) {
 		console.error("could not get webgl2 content");
@@ -180,6 +205,7 @@ function main() {
 	var deformersLocation = gl.getUniformLocation(fancyProgram, "u_deformers");
 	var yFromLocation= gl.getUniformLocation(fancyProgram, "u_y_from");
 	var yToLocation = gl.getUniformLocation(fancyProgram, "u_y_to");
+	var scrollLocation = gl.getUniformLocation(fancyProgram, "u_scroll");
 	var drawRectLocation = gl.getUniformLocation(fancyProgram, "u_drawRect");
 	var touchesLocation = gl.getUniformLocation(fancyProgram, "u_touches");
 	var touchCountLocation = gl.getUniformLocation(fancyProgram, "u_touchCount");
@@ -258,8 +284,10 @@ function main() {
 	var then = 0;
 
 	var currentFrameIndex = 0;
-	var rectInterval = 3870;
+	var rectInterval = 4870;
 	var timeSinceLastRect = rectInterval, justDrewARect = false; 
+	
+	let  firstFrameEver = true; 
 
 	requestAnimationFrame(drawScene);
 
@@ -277,68 +305,74 @@ function main() {
 			//set render target
 			gl.bindFramebuffer(gl.FRAMEBUFFER, fb); // we need some kind of internal double buffering - because we read from the previous frame and write the next frame
 			gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, frame[currentFrameIndex], 0); //level = 0
+			if(firstFrameEver) {
+				gl.clearColor(1, 1, 1, 1);   // clear to blue
+				gl.clear(gl.COLOR_BUFFER_BIT);
+				firstFrameEver = false;
+			} else {
+				//set texture to write to
+				gl.bindTexture(gl.TEXTURE_2D, frame[previousFrameIndex]);
 
-			//set texture to write to
-			gl.bindTexture(gl.TEXTURE_2D, frame[previousFrameIndex]);
+				gl.viewport(0, 0, texsize, texsize);
 
-			gl.viewport(0, 0, texsize, texsize);
-
-			gl.useProgram(fancyProgram); 
+				gl.useProgram(fancyProgram); 
 
 
-			if(justDrewARect)
-			{
-				gl.uniform1i(drawRectLocation, 0);
-				justDrewARect = false; 
-			} 
-			timeSinceLastRect += deltaTime;
-			if(timeSinceLastRect >= rectInterval || keydown)
-			{
-				const height = Math.random() * Math.random();
-				const yFrom = Math.random() * (2 - height) - 1; 
-				gl.uniform1f(yFromLocation, yFrom); 
-				gl.uniform1f(yToLocation, yFrom + height); 
-				gl.uniform1i(drawRectLocation, 1);
-				timeSinceLastRect = Math.min(rectInterval, Math.max(0, timeSinceLastRect - rectInterval * (Math.random()*1.8-0.4))); 
-				justDrewARect = true; 
+				if(justDrewARect)
+				{
+					gl.uniform1i(drawRectLocation, 0);
+					justDrewARect = false; 
+				} 
+				timeSinceLastRect += deltaTime;
+				if(timeSinceLastRect >= rectInterval || keydown)
+				{
+					const height = Math.random() * Math.random();
+					const yFrom = Math.random() * (2 - height) - 1; 
+					gl.uniform1f(yFromLocation, yFrom); 
+					gl.uniform1f(yToLocation, yFrom + height); 
+					gl.uniform1i(drawRectLocation, 1);
+					timeSinceLastRect = Math.min(rectInterval, Math.max(0, timeSinceLastRect - rectInterval * (Math.random()*1.8-0.4))); 
+					justDrewARect = true; 
+				}
+
+				gl.uniform1i(previousFrameTextureLocation, 0); //maybe this is only necessary initially
+				var deformers = [
+					Math.sin(time*0.00005), Math.sin(time*0.00011 + 3),
+					Math.sin(time*0.00006+1), Math.sin(time*0.0000452+100),
+					Math.sin(time*0.000135+0.543), Math.sin(time*0.0002+10)
+				].map(x => x*0.9);
+				gl.uniform2fv(deformersLocation, deformers)
+
+				gl.uniform1f(scrollLocation, (leftToScroll / windowHeight) * 2);
+				leftToScroll = 0;
+
+				gl.uniform3fv(touchesLocation, getTouchesForUniform());
+				gl.uniform1i(touchCountLocation, touches.length);
+
+					gl.bindVertexArray(vao); 
+				gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 			}
+			{
+				//set render target
+				gl.bindFramebuffer(gl.FRAMEBUFFER, null); //Screen
 
-			gl.uniform1i(previousFrameTextureLocation, 0); //maybe this is only necessary initially
-			var deformers = [
-				Math.sin(time*0.0001), Math.sin(time*0.00031 + 3),
-				Math.sin(time*0.00012+1), Math.sin(time*0.000092+100),
-				Math.sin(time*0.000235+0.543), Math.sin(time*0.0004+10)
-			].map(x => x*0.9);
-			gl.uniform2fv(deformersLocation, deformers)
+				//set texture to read from
+				gl.bindTexture(gl.TEXTURE_2D, frame[currentFrameIndex]);
 
-			gl.uniform3fv(touchesLocation, getTouchesForUniform());
-			gl.uniform1i(touchCountLocation, touches.length);
+				gl.viewport(0, 0, cansize, cansize);
+
+
+				//set program and uniforms
+				gl.useProgram(postProcessProgram);
+				gl.uniform1i(currentFrameTextureLocation, 0);
 
 				gl.bindVertexArray(vao); 
-			gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+				gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+			}
 		}
-		{
-			//set render target
-			gl.bindFramebuffer(gl.FRAMEBUFFER, null); //Screen
-
-			//set texture to read from
-			gl.bindTexture(gl.TEXTURE_2D, frame[currentFrameIndex]);
-
-			gl.viewport(0, 0, cansize, cansize);
-
-
-			gl.clearColor(0, 0, 1, 1);   // clear to blue
-			gl.clear(gl.COLOR_BUFFER_BIT);
-
-			//set program and uniforms
-			gl.useProgram(postProcessProgram);
-			gl.uniform1i(currentFrameTextureLocation, 0);
-
-			gl.bindVertexArray(vao); 
-			gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-		}
-
-		requestAnimationFrame(drawScene);
+		setTimeout(() => {
+			requestAnimationFrame(drawScene);
+		}, 1000 / 49)
 	}
 }
 
