@@ -28,104 +28,56 @@ uniform vec2 u_deformers[3];
 uniform vec3 u_touches[10];
 uniform int u_touchCount; 
 
-uniform vec2 u_triangleCoords[3];
-uniform int u_drawTriangle;
+uniform float u_y_from;
+uniform float u_y_to; 
+uniform int u_drawRect;
 
-float onePixel = 2.0 / 1024.0;
+const float speed = 0.0018; 
 
 // we need to declare an output for the fragment shader
 out vec4 outColor;
 
 void main() {
 
-	int i; 
-	bool partOfTriangle = false;
-	float a, b = -1.0, edgeDistance; 
-	if(u_drawTriangle == 1)
-	{
-		vec2 avg = ( ( u_triangleCoords[0] + u_triangleCoords[1] ) * 0.5 + u_triangleCoords[2] ) * 0.5;
-
-		int iB, iC; 
-		float M, U, N, V; 
-		for(i = 0; i < 3; i++)
-		{
-			iB = i; 
-			iC = (i + 1) % 3; 
-
-			M = (u_triangleCoords[iB].y - u_triangleCoords[iC].y) * (position.x - avg.x);
-			U = (position.x - avg.x) * (u_triangleCoords[iC].y - avg.y);
-			N = (u_triangleCoords[iB].x - u_triangleCoords[iC].x) * (position.y - avg.y);
-			V = (position.y - avg.y) * (u_triangleCoords[iC].x - avg.x); 
-
-			a = (V-U) / (M - N);
-
-			b = ( position.y - avg.y ) / ( u_triangleCoords[iB].y * a + u_triangleCoords[iC].y * (1.0 - a) - avg.y);
-
-			if(a >= 0.0 && a <= 1.0 && b >= 0.0 && b <= 1.0)
-			{
-				partOfTriangle = true; 
-				edgeDistance = distance(avg, position) / b;
-				break; 
-			}
-		} 
+	vec2 shift = vec2(0,0);
+	vec2 difference;
+	float distance;  
+	
+	int i;
+	// deformers
+	for(i = 0; i < 3; i++){
+		difference = u_deformers[i] - position; 
+		distance = pow(difference.x, 2.0) + pow(difference.y, 2.0);
+		shift += difference / (distance+speed) / pow(distance+1.0,1.5);
 	}
 
-	vec4 previousColor = texture(u_previousFrame, (position + vec2(1,1)) * 0.5f);
-	vec4 invertColor = vec4(min(1.0, 0.1 + previousColor.g*0.9 + abs(previousColor.b*0.5 - previousColor.r)), abs((previousColor.b+0.15) * previousColor.r), 0.1 + 0.9*previousColor.r, previousColor.a);
-	float fade; 
-	if(partOfTriangle)
-	{
-		vec4 newColor = vec4(1,1,1,1)*0.65 + vec4((u_triangleCoords[0].xy + vec2(2,2)) * 0.33, 0.75, 1)*0.35;
-		float relPixSize = onePixel * 2.0 / (edgeDistance); 
-		if(b <= 0.9)
-		{
-
-			if(b > 0.9 - relPixSize)
-			{
-				fade = (0.9-b) / relPixSize;
-				outColor = invertColor * fade + newColor * (1.0 - fade); 
-			}
-			else
-			{
-				outColor = invertColor; 
-			}
-		}
-		else if(b <= 1.0)
-		{
-			if(b > 1.0 - relPixSize)
-			{
-				fade = (1.0-b) / relPixSize;
-				outColor = newColor * fade + previousColor * (1.0 - fade);
-			}
-			else
-			{
-				outColor = newColor; 
-			}
-		}
+	// attractors
+	for(i = 0; i < u_touchCount; i++){
+		difference = u_touches[i].xy - position;
+		distance = pow(difference.x, 2.0) + pow(difference.y, 2.0);
+		shift -= 2.0 * difference / (distance+speed) / pow(distance+1.0,1.5);
 	}
-	else 
-	{
-		vec2 shift = vec2(0,0);
-		vec2 difference;
-		float distance;  
-		float speed = 0.0018; 
 
-		for(i = 0; i < 3; i++){
-			difference = u_deformers[i] - position; 
-			distance = pow(difference.x, 2.0) + pow(difference.y, 2.0);
-			shift += difference / (distance+speed) / pow(distance+1.0,1.5);
+	shift *= speed; //consider multiplying with -1 :D
+
+	vec3 previousColor = texture(u_previousFrame, (position + shift + vec2(1,1)) * 0.5f).rgb;
+	vec3 nextColor;
+
+	if(position.y > u_y_from && position.y < u_y_to ) {
+		if(position.y > u_y_from * 0.9 + u_y_to * 0.1 && position.y < u_y_to * 0.9 + u_y_from * 0.1) {
+			nextColor = previousColor - vec3(0.01, 0.01, 0.005) ; //0.33 * (vec3(1) + vec3(u_y_from, u_y_to, 0));
+		} else {
+			nextColor = vec3(
+				min(1.0, 0.1 + previousColor.g*0.9 + abs(previousColor.b*0.5 - previousColor.r)), 
+				abs((previousColor.b+0.15) * previousColor.r), 
+				0.1 + 0.9*previousColor.r
+			);
 		}
-
-		for(i = 0; i < u_touchCount; i++){
-			difference = u_touches[i].xy - position;
-			distance = pow(difference.x, 2.0) + pow(difference.y, 2.0);
-			shift -= 2.0 * difference / (distance+speed) / pow(distance+1.0,1.5);
-		}
-
-		shift *= speed; //consider multiplying with -1 :D
-
-		outColor = texture(u_previousFrame, (position + shift + vec2(1,1)) * 0.5f)*vec4(0.992,0.994,0.996,1) - vec4(0.00055,0.00015,0.00025,0);
+		nextColor = max(vec3(0), nextColor);
+	} else {
+		nextColor = min(vec3(1), previousColor * vec3(1.008, 1.006, 1.004) + vec3(0.00055, 0.00015, 0.00025)); 
 	}
+	outColor = vec4(nextColor, 1); 
 }`;
 
 var postProcessFragmentShaderSource = `#version 300 es
@@ -209,7 +161,7 @@ function main() {
 		return; 
 	}
 
-	var texsize = Math.pow(2,10);
+	var texsize = Math.pow(2, 8);
 	var cansize = texsize;//1024;  
 
 	canvas.setAttribute("width", cansize);
@@ -226,8 +178,9 @@ function main() {
 	// look up uniform locations
 	var previousFrameTextureLocation = gl.getUniformLocation(fancyProgram, "u_previousFrame");
 	var deformersLocation = gl.getUniformLocation(fancyProgram, "u_deformers");
-	var triangleCoordsLocation = gl.getUniformLocation(fancyProgram, "u_triangleCoords");
-	var drawTriangleLocation = gl.getUniformLocation(fancyProgram, "u_drawTriangle");
+	var yFromLocation= gl.getUniformLocation(fancyProgram, "u_y_from");
+	var yToLocation = gl.getUniformLocation(fancyProgram, "u_y_to");
+	var drawRectLocation = gl.getUniformLocation(fancyProgram, "u_drawRect");
 	var touchesLocation = gl.getUniformLocation(fancyProgram, "u_touches");
 	var touchCountLocation = gl.getUniformLocation(fancyProgram, "u_touchCount");
 
@@ -305,8 +258,8 @@ function main() {
 	var then = 0;
 
 	var currentFrameIndex = 0;
-	var triangleInterval = 870;
-	var timeSinceLastTriangle = triangleInterval, justDrewATriangle = false; 
+	var rectInterval = 3870;
+	var timeSinceLastRect = rectInterval, justDrewARect = false; 
 
 	requestAnimationFrame(drawScene);
 
@@ -315,7 +268,7 @@ function main() {
 		var deltaTime = time - then;
 		then = time;
 
-		timeSinceLastTriangle += deltaTime;
+		timeSinceLastRect += deltaTime;
 
 		currentFrameIndex = 1 - currentFrameIndex;
 		var previousFrameIndex = 1 - currentFrameIndex;
@@ -333,18 +286,21 @@ function main() {
 			gl.useProgram(fancyProgram); 
 
 
-			if(justDrewATriangle)
+			if(justDrewARect)
 			{
-				gl.uniform1i(drawTriangleLocation, 0);
-				justDrewATriangle = false; 
+				gl.uniform1i(drawRectLocation, 0);
+				justDrewARect = false; 
 			} 
-			timeSinceLastTriangle += deltaTime;
-			if(timeSinceLastTriangle >= triangleInterval || keydown)
+			timeSinceLastRect += deltaTime;
+			if(timeSinceLastRect >= rectInterval || keydown)
 			{
-				gl.uniform2fv(triangleCoordsLocation, Array.apply(null, Array(6)).map(i => (Math.random()*2-1)))        
-					gl.uniform1i(drawTriangleLocation, 1);
-				timeSinceLastTriangle = Math.min(triangleInterval, Math.max(0, timeSinceLastTriangle - triangleInterval * (Math.random()*1.8-0.4))); 
-				justDrewATriangle = true; 
+				const height = Math.random() * Math.random();
+				const yFrom = Math.random() * (2 - height) - 1; 
+				gl.uniform1f(yFromLocation, yFrom); 
+				gl.uniform1f(yToLocation, yFrom + height); 
+				gl.uniform1i(drawRectLocation, 1);
+				timeSinceLastRect = Math.min(rectInterval, Math.max(0, timeSinceLastRect - rectInterval * (Math.random()*1.8-0.4))); 
+				justDrewARect = true; 
 			}
 
 			gl.uniform1i(previousFrameTextureLocation, 0); //maybe this is only necessary initially
